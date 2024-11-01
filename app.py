@@ -13,6 +13,8 @@ app = Flask(__name__)
 app.config["MONGO_URI"] = f"mongodb+srv://admin:admin@progeficaz.yni5x.mongodb.net/projeto"
 mongo = PyMongo(app)
 
+init_mongo(mongo)
+
 try:
    
     mongo.cx.server_info()
