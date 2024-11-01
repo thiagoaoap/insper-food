@@ -1,19 +1,20 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
 import getpass
 from pymongo.errors import OperationFailure
 from datetime import datetime
 import pymongo
+from auth import requires_auth, hash_password, init_mongo
+from werkzeug.security import generate_password_hash, check_password_hash
 
-user = input('User: ')
-password = getpass.getpass('Password: ')
 
 app = Flask(__name__)
+app.config["MONGO_URI"] = f"mongodb+srv://admin:admin@progeficaz.yni5x.mongodb.net/projeto"
+mongo = PyMongo(app)
 
 try:
-    app.config["MONGO_URI"] = f"mongodb+srv://{user}:{password}@cluster0.rvm0f.mongodb.net/insper_food"
-    mongo = PyMongo(app)
+   
     mongo.cx.server_info()
     print("Conectado ao MongoDB com sucesso!")
 except OperationFailure as x:
@@ -23,10 +24,83 @@ except Exception as x:
     print(f"Erro ao conectar ao MongoDB: {x}")
     exit()
 
+#Cria admin
+def create_admin_user():
+    if mongo.db.cadastro.find_one({"usuario": "admin"}) is None:
+        user_data = {"nome": "Admin", "usuario": "admin", "senha": generate_password_hash("admin123"), "email": "admin@example.com"}
+        mongo.db.cadastro.insert_one(user_data)
+        print("Usuário admin criado com sucesso!")
+    else:
+        print("Usuário admin já existe.")
 
-########################################################################################## PEDIDOS EM ANDAMENTO
+create_admin_user()
+
+#Cadastra usuario
+@app.route('/cadastro', methods=['POST'])
+def create_user():
+    """Rota para criar um novo usuário."""
+    nome = request.json.get('nome')
+    usuario = request.json.get('usuario')
+    senha = request.json.get('senha')
+    email = request.json.get('email')
+
+    if not nome or not usuario or not senha or not email:
+        return jsonify({"error": "Nome, usuário, email, senha e confirmação de senha são obrigatórios"}), 400
+
+    if mongo.db.cadastro.find_one({"usuario": usuario}):
+        return jsonify({"error": "Usuário já existe"}), 409
+    
+    if mongo.db.cadastro.find_one({"email": email}):
+        return jsonify({"error": "Email já cadastrado"}), 409
+
+    hashed_password = generate_password_hash(senha)
+    user_data = {"nome": nome, "usuario": usuario, "senha": hashed_password, "email": email}
+    mongo.db.cadastro.insert_one(user_data)
+    return jsonify({"msg": "Usuário criado com sucesso!"}), 201
 
 
+#Logar usuario
+@app.route('/login', methods=['POST'])
+def login():
+    """Rota para autenticar um usuário usando email ou nome de usuário."""
+    data = request.json
+    usuario = data.get("usuario")
+    senha = data.get("senha")
+    
+    if not usuario or not senha:
+        return jsonify({"error": "Usuário e senha são obrigatórios"}), 400
+
+    user = mongo.db.cadastro.find_one({"$or": [{"usuario": usuario}, {"email": usuario}]} )
+    
+    if user:
+        if check_password_hash(user['senha'], senha):
+            return jsonify({"msg": "Login realizado com sucesso!"}), 200
+        else:
+            return jsonify({"error": "Usuário ou senha inválidos"}), 401
+    else:
+        return jsonify({"error": "Usuário ou senha inválidos"}), 401
+
+
+#Pagina dos funcionarios
+@app.route('/secret')
+@requires_auth
+def secret_page():
+    """Rota protegida que requer autenticação e exibe o painel de controle dos pedidos."""
+    
+   
+    pedidos_em_andamento = list(mongo.db.pedidos_em_andamento.find({}, {"_id": 0}))
+
+    
+    pedidos_completos = list(mongo.db.pedidos_completos.find({}, {"_id": 0}))
+
+    return jsonify({
+        "msg": "Você está autenticado e pode acessar esta página protegida",
+        "pedidos_em_andamento": pedidos_em_andamento,
+        "pedidos_completos": pedidos_completos
+    }), 200
+
+
+################## ROTAS PEDIDOS #####################################################################
 @app.route('/pedidos', methods=['GET'])
 def get_pedidos_em_andamento():
 
@@ -131,6 +205,7 @@ def delete_pedido_em_andamento(senha):
     
 
 @app.route('/pedidos/<senha>/completar', methods=['PUT'])
+@requires_auth
 def completar_pedido(senha):
 
     dados_pedido = mongo.db.pedidos_em_andamento.find_one(
