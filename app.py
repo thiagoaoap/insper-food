@@ -237,6 +237,7 @@ def completar_pedido(senha):
 def get_pedidos_completos():
 
     filtro = {}
+    projecao = {"_id": 0, "codigos_itens": 1, "senha": 1}
     dados_pedidos = mongo.db.pedidos_completos.find(filtro)
 
     pedidos = []
@@ -244,6 +245,8 @@ def get_pedidos_completos():
     for pedido in dados_pedidos:
         pedido["_id"] = str(pedido["_id"])
         pedidos.append(pedido)
+    
+
 
     resp = {
         "pedidos_completos": pedidos
