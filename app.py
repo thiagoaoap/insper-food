@@ -158,12 +158,15 @@ def post_pedido_em_andamento():
         return {"erro": f"Pedido sem nenhum item"}, 400
 
     preco_total = 0
-
+    nome_comida = []
     for codigo in data['codigos_itens']:
         item = mongo.db.itens_cardapio.find_one({"codigo": codigo})
-        preco_total += item['preco']
+        if item:
+            preco_total += item['preco']
+            nome_comida.append(item['nome'])
     
     data['preco_total'] = preco_total
+    data['nome_comida'] = nome_comida
 
     result = mongo.db.pedidos_em_andamento.insert_one(data)
 
