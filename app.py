@@ -16,7 +16,6 @@ mongo = PyMongo(app)
 init_mongo(mongo)
 
 try:
-   
     mongo.cx.server_info()
     print("Conectado ao MongoDB com sucesso!")
 except OperationFailure as x:
@@ -103,6 +102,8 @@ def secret_page():
 
 
 ################## ROTAS PEDIDOS #####################################################################
+
+
 @app.route('/pedidos', methods=['GET'])
 def get_pedidos_em_andamento():
 
